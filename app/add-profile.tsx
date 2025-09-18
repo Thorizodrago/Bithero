@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		alignItems: 'center',
 		backgroundColor: '#f7f8fa',
-		...(Platform.OS === 'web' ? { background: 'linear-gradient(135deg, #e0e7ff 0%, #fff 100%)' } : {}),
+		...(Platform.OS === 'web' ? { backgroundImage: 'linear-gradient(135deg, #e0e7ff 0%, #fff 100%)' } : {}),
 	},
 	centeredContainer: {
 		flex: 1,

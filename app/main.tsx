@@ -253,11 +253,15 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 18,
 		alignItems: 'center',
 		minWidth: 90,
-		shadowColor: colors.primary,
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.08,
-		shadowRadius: 6,
-		elevation: 2,
+		...(Platform.OS === 'web' ? {
+			boxShadow: `0 2px 6px rgba(0, 102, 204, 0.08)`,
+		} : {
+			shadowColor: colors.primary,
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.08,
+			shadowRadius: 6,
+			elevation: 2,
+		}),
 	},
 	actionIcon: {
 		fontSize: 24,

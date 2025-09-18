@@ -1,3 +1,4 @@
+//THIS CODE IS PLANNED FOR FUTURE WORK
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import React, { useEffect, useRef, useState } from "react";

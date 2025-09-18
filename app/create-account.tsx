@@ -14,29 +14,33 @@ import {
 } from "react-native";
 import { checkUsernameAvailable, claimUsername } from '../src/db';
 import { auth } from '../src/firebase';
+import { useUsernameAvailability } from '../src/hooks/useUsernameAvailability';
 import SoftBackground from "../src/ui/SoftBackground";
 import { colors, components, layout } from "../src/ui/theme";
 
 const { width, height } = Dimensions.get('window');
 
-interface FormState {
+interface CreateAccountForm {
 	username: string;
 	email: string;
 	password: string;
-	confirmPassword: string;
 }
+
+type FormState = CreateAccountForm;
 
 export default function CreateAccount() {
 	const [form, setForm] = useState<FormState>({
 		username: "",
 		email: "",
 		password: "",
-		confirmPassword: "",
 	});
 
 	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 	const submittingRef = useRef(false);
 	const router = useRouter();
+
+	// Username availability checking
+	const { isAvailable, isChecking, error: usernameError } = useUsernameAvailability(form.username);
 
 	const checkEmailExists = async (email: string): Promise<boolean> => {
 		try {
@@ -55,14 +59,12 @@ export default function CreateAccount() {
 		if (submittingRef.current || isSubmitting) return; // prevent double-taps
 		submittingRef.current = true;
 		setIsSubmitting(true);
-		const { username, email, password, confirmPassword } = form;
+		const { username, email, password } = form;
 		if (!username.trim()) { Alert.alert("Error", "Nickname is required!"); submittingRef.current = false; setIsSubmitting(false); return; }
 		if (!email.trim()) { Alert.alert("Error", "Email is required!"); submittingRef.current = false; setIsSubmitting(false); return; }
 		if (!password.trim()) { Alert.alert("Error", "Password is required!"); submittingRef.current = false; setIsSubmitting(false); return; }
-		if (!confirmPassword.trim()) { Alert.alert("Error", "Please confirm your password!"); submittingRef.current = false; setIsSubmitting(false); return; }
 		if (!validateEmail(email.trim())) { Alert.alert("Invalid Email", "Please enter a valid email address."); submittingRef.current = false; setIsSubmitting(false); return; }
 		if (password.length < 6) { Alert.alert("Weak Password", "Password must be at least 6 characters long."); submittingRef.current = false; setIsSubmitting(false); return; }
-		if (password !== confirmPassword) { Alert.alert("Error", "Passwords do not match!"); submittingRef.current = false; setIsSubmitting(false); return; }
 		try {
 			const emailExists = await checkEmailExists(email.trim());
 			if (emailExists) {
@@ -99,13 +101,35 @@ export default function CreateAccount() {
 				await claimUsername(user.uid, username.trim());
 			} catch (e: any) {
 				// If username was taken between check and claim, clean up and ask for another
-				try { await user.delete(); } catch { }
+				try {
+					// Import deleteUser function for proper cleanup
+					const { deleteUser } = await import('../src/db');
+					await deleteUser(user.uid);
+					// Also delete from Firebase Auth
+					await user.delete();
+				} catch (cleanupError) {
+					console.error('Error during cleanup:', cleanupError);
+				}
 				Alert.alert("Nickname Taken", "This nickname was just taken. Please choose another.");
 				submittingRef.current = false;
 				setIsSubmitting(false);
 				return;
 			}
-			await sendEmailVerification(user);
+
+			// Send email verification with action code settings
+			const actionCodeSettings = {
+				url: `${window.location.origin}/email-verification-success`,
+				handleCodeInApp: false,
+			};
+
+			try {
+				await sendEmailVerification(user, actionCodeSettings);
+			} catch (verificationError) {
+				console.warn('Email verification with action code failed, trying default:', verificationError);
+				// Fallback to default verification
+				await sendEmailVerification(user);
+			}
+
 			await AsyncStorage.setItem(`lastEmailVerification_${email.trim()}`, Date.now().toString());
 			router.push({ pathname: "/email-sent", params: { type: "email-verification", email: email.trim(), title: "Account Created Successfully!", message: "We've sent a verification email to your address. Please verify your email before signing in." } });
 		} catch (error: any) {
@@ -140,6 +164,22 @@ export default function CreateAccount() {
 								value={form.username}
 								onChangeText={text => handleChange("username", text)}
 							/>
+							{form.username.length > 1 && (
+								<View style={styles.usernameStatus}>
+									{isChecking && (
+										<Text style={styles.statusChecking}>Checking availability...</Text>
+									)}
+									{!isChecking && usernameError && (
+										<Text style={styles.statusError}>{usernameError}</Text>
+									)}
+									{!isChecking && !usernameError && isAvailable === true && (
+										<Text style={styles.statusAvailable}>✓ Available</Text>
+									)}
+									{!isChecking && !usernameError && isAvailable === false && (
+										<Text style={styles.statusTaken}>✗ Already taken</Text>
+									)}
+								</View>
+							)}
 						</View>
 						<View style={styles.field}>
 							<Text style={components.fieldLabel}>Email</Text>
@@ -164,18 +204,14 @@ export default function CreateAccount() {
 								onChangeText={text => handleChange("password", text)}
 							/>
 						</View>
-						<View style={styles.field}>
-							<Text style={components.fieldLabel}>Confirm Password</Text>
-							<TextInput
-								style={[components.textField, styles.textField]}
-								placeholder="••••••••"
-								placeholderTextColor={colors.subtleText}
-								secureTextEntry
-								value={form.confirmPassword}
-								onChangeText={text => handleChange("confirmPassword", text)}
-							/>
-						</View>
-						<TouchableOpacity style={[components.cta, isSubmitting && components.disabledButton]} onPress={handleSubmit} disabled={isSubmitting}>
+						<TouchableOpacity
+							style={[
+								components.cta,
+								(isSubmitting || isChecking || !!usernameError || !isAvailable) && components.disabledButton
+							]}
+							onPress={handleSubmit}
+							disabled={isSubmitting || isChecking || !!usernameError || !isAvailable}
+						>
 							{isSubmitting ? (
 								<ActivityIndicator color="#fff" />
 							) : (
@@ -222,5 +258,25 @@ const styles = StyleSheet.create({
 		marginTop: 20,
 		fontWeight: '600',
 		fontSize: 16,
+	},
+	usernameStatus: {
+		marginTop: 5,
+		paddingLeft: 5,
+	},
+	statusChecking: {
+		fontSize: 14,
+		color: colors.subtleText,
+	},
+	statusError: {
+		fontSize: 14,
+		color: "#ff4444",
+	},
+	statusAvailable: {
+		fontSize: 14,
+		color: "#22c55e",
+	},
+	statusTaken: {
+		fontSize: 14,
+		color: "#ff4444",
 	},
 });

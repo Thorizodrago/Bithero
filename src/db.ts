@@ -49,21 +49,31 @@ export async function createOrUpdateBitcoinUser(firebaseUser: FirebaseAuthUser, 
 	const snap = await getDoc(userRef);
 	const now = Timestamp.now();
 
-	const data: BitcoinUser = {
+	const data: Partial<BitcoinUser> = {
 		uid: firebaseUser.uid,
 		username: params.username,
 		usernameLower: normalizeUsername(params.username),
-		bitcoinAddress: params.bitcoinAddress,
-		stacksAddress: params.stacksAddress,
 		email: firebaseUser.email || '',
-		profilePictureUrl: params.profilePictureUrl,
-		realName: params.realName,
 		createdAt: snap.exists() ? (snap.data().createdAt as Timestamp) : now,
 		updatedAt: now,
 	};
 
-	await setDoc(userRef, data, { merge: true });
-	return data;
+	// Only add fields that are not undefined to avoid Firestore errors
+	if (params.bitcoinAddress !== undefined) {
+		data.bitcoinAddress = params.bitcoinAddress;
+	}
+	if (params.stacksAddress !== undefined) {
+		data.stacksAddress = params.stacksAddress;
+	}
+	if (params.profilePictureUrl !== undefined) {
+		data.profilePictureUrl = params.profilePictureUrl;
+	}
+	if (params.realName !== undefined) {
+		data.realName = params.realName;
+	}
+
+	await setDoc(userRef, data as BitcoinUser, { merge: true });
+	return data as BitcoinUser;
 }
 
 export async function findUserByUsername(username: string) {
@@ -123,6 +133,18 @@ export async function checkUsernameAvailable(username: string, currentUid?: stri
 	return data.uid === currentUid;
 }
 
+export async function checkEmailExists(email: string): Promise<boolean> {
+	try {
+		const usersRef = collection(db, 'users');
+		const q = query(usersRef, where('email', '==', email.toLowerCase()));
+		const querySnapshot = await getDocs(q);
+		return !querySnapshot.empty;
+	} catch (error) {
+		console.error('Error checking email existence:', error);
+		return false;
+	}
+}
+
 export async function getUserByUid(uid: string) {
 	const ref = doc(db, 'users', uid);
 	const snap = await getDoc(ref);
@@ -177,5 +199,44 @@ export async function releaseUsername(uid: string, username: string) {
 	const snap = await getDoc(usernamesRef);
 	if (snap.exists() && (snap.data() as { uid: string }).uid === uid) {
 		await deleteDoc(usernamesRef);
+	}
+}
+
+export async function deleteUser(uid: string) {
+	// Get user data first to release username
+	const userRef = doc(db, 'users', uid);
+	const userSnap = await getDoc(userRef);
+
+	if (userSnap.exists()) {
+		const userData = userSnap.data() as BitcoinUser;
+
+		// Release username if exists
+		if (userData.username) {
+			await releaseUsername(uid, userData.username);
+		}
+
+		// Delete user document
+		await deleteDoc(userRef);
+
+		// Clean up related data
+		await cleanupUserData(uid);
+	}
+}
+
+export async function cleanupUserData(uid: string) {
+	try {
+		// Delete pinned contacts
+		const pinnedContactsRef = collection(db, 'pinnedContacts');
+		const pinnedQuery = query(pinnedContactsRef, where('uid', '==', uid));
+		const pinnedSnap = await getDocs(pinnedQuery);
+
+		const deletePromises = pinnedSnap.docs.map(doc => deleteDoc(doc.ref));
+		await Promise.all(deletePromises);
+
+		// Note: We keep transfer records for audit purposes
+		// They contain historical data that shouldn't be deleted
+
+	} catch (error) {
+		console.error('Error cleaning up user data:', error);
 	}
 }

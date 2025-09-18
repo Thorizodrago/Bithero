@@ -34,43 +34,176 @@ export default function ConnectWallet() {
 			return;
 		}
 
-		if (!userSession) return;
-
 		setIsConnecting(true);
 		try {
-			// Check if Leather wallet is available
-			if (typeof window !== 'undefined' && (window as any).StacksProvider) {
-				const provider = (window as any).StacksProvider;
-				const response = await provider.request({
-					method: 'stx_getAddresses'
-				});
+			console.log('🚀 Starting Leather connection...');
 
-				if (response.result && response.result.addresses.length > 0) {
-					const stxAddress = response.result.addresses[0];
-					setAddress(stxAddress);
-					Alert.alert('Wallet Connected', `Connected to: ${stxAddress.slice(0, 8)}...${stxAddress.slice(-8)}`);
+			let accounts = null;
+			let connectionMethod = '';
+
+			// Method 1: Direct Leather WebBTC API (bypasses other wallets)
+			try {
+				if (typeof window !== 'undefined' && (window as any).btc && (window as any).btc.request) {
+					console.log('🎯 Trying Leather WebBTC API...');
+					const btcProvider = (window as any).btc;
+
+					const response = await btcProvider.request('getAddresses');
+					console.log('WebBTC response:', response);
+
+					if (response && response.result && response.result.addresses) {
+						const stxAddress = response.result.addresses.find((addr: any) =>
+							addr.symbol === 'STX' || addr.type === 'stacks'
+						);
+						if (stxAddress && stxAddress.address) {
+							accounts = [stxAddress.address];
+							connectionMethod = 'WebBTC API';
+						}
+					}
 				}
-			} else {
-				Alert.alert('Leather Not Found', 'Please install Leather wallet extension and try again.');
+			} catch (err) {
+				console.log('❌ WebBTC method failed:', err);
 			}
+
+			// Method 2: Leather-specific provider (if WebBTC failed)
+			if (!accounts) {
+				try {
+					if (typeof window !== 'undefined' && (window as any).LeatherProvider) {
+						console.log('🎯 Trying LeatherProvider...');
+						const leatherProvider = (window as any).LeatherProvider;
+
+						const response = await leatherProvider.connect();
+						console.log('LeatherProvider response:', response);
+
+						if (response && response.addresses) {
+							const stxAddr = response.addresses.find((addr: any) => addr.type === 'stx');
+							if (stxAddr && stxAddr.address) {
+								accounts = [stxAddr.address];
+								connectionMethod = 'LeatherProvider';
+							}
+						}
+					}
+				} catch (err) {
+					console.log('❌ LeatherProvider method failed:', err);
+				}
+			}
+
+			// Method 3: Force bypass other wallets using specific Leather detection
+			if (!accounts) {
+				try {
+					console.log('🎯 Trying direct Leather window access...');
+
+					// Check all window properties for Leather-specific ones
+					const windowProps = Object.keys(window);
+					const leatherProps = windowProps.filter(prop =>
+						prop.toLowerCase().includes('leather') ||
+						prop.toLowerCase().includes('hiro')
+					);
+
+					console.log('Found Leather-related properties:', leatherProps);
+
+					for (const prop of leatherProps) {
+						try {
+							const provider = (window as any)[prop];
+							if (provider && provider.request) {
+								const response = await provider.request({
+									method: 'stx_requestAccounts'
+								});
+
+								if (response && response.result && response.result.length > 0) {
+									accounts = response.result;
+									connectionMethod = `Direct ${prop}`;
+									break;
+								}
+							}
+						} catch (propErr) {
+							console.log(`Failed with ${prop}:`, propErr);
+						}
+					}
+				} catch (err) {
+					console.log('❌ Direct access method failed:', err);
+				}
+			}
+
+			// Method 4: PostMessage communication (last resort)
+			if (!accounts) {
+				try {
+					console.log('🎯 Trying postMessage to Leather...');
+
+					accounts = await new Promise((resolve, reject) => {
+						const timeout = setTimeout(() => {
+							reject(new Error('Leather connection timeout'));
+						}, 5000);
+
+						const handleMessage = (event: MessageEvent) => {
+							if (event.data && event.data.source === 'leather-extension') {
+								clearTimeout(timeout);
+								window.removeEventListener('message', handleMessage);
+
+								if (event.data.payload && event.data.payload.addresses) {
+									const stxAddress = event.data.payload.addresses.stx;
+									if (stxAddress) {
+										resolve([stxAddress]);
+									} else {
+										reject(new Error('No STX address in response'));
+									}
+								} else {
+									reject(new Error('Invalid response format'));
+								}
+							}
+						};
+
+						window.addEventListener('message', handleMessage);
+
+						// Send connection request to Leather
+						window.postMessage({
+							type: 'connectWallet',
+							target: 'leather-extension'
+						}, '*');
+					});
+
+					connectionMethod = 'PostMessage';
+				} catch (err) {
+					console.log('❌ PostMessage method failed:', err);
+				}
+			}
+
+			// Process results
+			if (accounts && accounts.length > 0) {
+				const stxAddress = accounts[0];
+				setAddress(stxAddress);
+				Alert.alert(
+					'🎉 Leather Connected!',
+					`Successfully connected via ${connectionMethod}\n\nAddress: ${stxAddress.slice(0, 8)}...${stxAddress.slice(-8)}\n\n✅ Bypassed wallet conflicts!`
+				);
+			} else {
+				throw new Error(`Connection failed. Multiple wallets detected:\n\n• MetaMask: ${!!(window as any).ethereum}\n• Phantom: ${!!(window as any).solana}\n• Other wallets may be interfering\n\n💡 Try:\n1. Disable MetaMask/Phantom temporarily\n2. Refresh the page\n3. Use manual address input below`);
+			}
+
 		} catch (error) {
-			console.error('Leather connection error:', error);
-			Alert.alert('Connection Failed', 'Failed to connect to Leather wallet. Please try again.');
+			console.error('💥 All Leather connection methods failed:', error);
+			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+			Alert.alert(
+				'Connection Failed 😔',
+				`${errorMessage}\n\n🔧 Solutions:\n• Temporarily disable MetaMask/Phantom\n• Refresh the page and try again\n• Use manual address input below`
+			);
 		} finally {
 			setIsConnecting(false);
 		}
 	};
 
 	const validateStacksAddress = (addr: string) => {
-		// Basic Stacks address validation - starts with SP or SM for mainnet
-		return /^S[PM][0-9A-Z]{38,40}$/i.test(addr);
+		if (!addr || addr.length < 40) return false;
+		// More flexible Stacks address validation (SP, SM for mainnet, ST for testnet)
+		return /^S[PMT][0-9A-HJKMNP-Z]{38,40}$/i.test(addr.trim());
 	};
 
 	const handleContinue = async () => {
-		if (!validateStacksAddress(address)) {
-			Alert.alert('Invalid Address', 'Please enter a valid Stacks (STX) address.');
+		const trimmedAddress = address.trim();
+		if (!validateStacksAddress(trimmedAddress)) {
+			Alert.alert('Invalid Address', 'Please enter a valid Stacks (STX) address. Address should start with SP, SM, or ST.');
 			return;
 		}
+
 		const user = auth.currentUser;
 		if (!user) {
 			Alert.alert('Not signed in', 'Please log in first.');
@@ -78,17 +211,31 @@ export default function ConnectWallet() {
 			return;
 		}
 
-		const profile = await getUserByUid(user.uid);
-		const username = profile?.username;
-		if (!username) {
-			Alert.alert('Missing nickname', 'Your nickname was not set. Please go back and try creating your account again.');
-			router.replace('/create-account');
-			return;
-		}
+		try {
+			console.log('Getting user profile...');
+			const profile = await getUserByUid(user.uid);
+			const username = profile?.username;
 
-		// Save STX address instead of Bitcoin address
-		await createOrUpdateBitcoinUser(user, { username, stacksAddress: address });
-		router.push(`/add-profile?address=${encodeURIComponent(address)}` as any);
+			if (!username) {
+				Alert.alert('Missing nickname', 'Your nickname was not set. Please go back and try creating your account again.');
+				router.replace('/create-account');
+				return;
+			}
+
+			console.log('Saving STX address...', { username, stacksAddress: trimmedAddress });
+			// Only save stacksAddress - don't include undefined bitcoinAddress
+			await createOrUpdateBitcoinUser(user, {
+				username,
+				stacksAddress: trimmedAddress
+			});
+
+			console.log('Navigating to add-profile...');
+			router.push(`/add-profile?address=${encodeURIComponent(trimmedAddress)}` as any);
+		} catch (error) {
+			console.error('Error in handleContinue:', error);
+			const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+			Alert.alert('Error', `Failed to save address: ${errorMessage}`);
+		}
 	};
 
 	return (
@@ -110,7 +257,7 @@ export default function ConnectWallet() {
 							disabled={isConnecting}
 						>
 							<Text style={components.ctaText}>
-								{isConnecting ? '🔄 Connecting...' : '🔗 Connect Leather Wallet'}
+								{isConnecting ? '🔄 Bypassing other wallets...' : '� Connect Leather (Anti-Conflict)'}
 							</Text>
 						</TouchableOpacity>
 					)}
@@ -132,7 +279,7 @@ export default function ConnectWallet() {
 					/>
 					<Text style={styles.helper}>
 						{Platform.OS === 'web'
-							? 'Use Leather wallet for secure connection, or enter your STX address manually.'
+							? 'Smart detection bypasses MetaMask/Phantom conflicts. If connection fails, try disabling other wallets temporarily.'
 							: 'Enter your Stacks (STX) address to continue.'
 						}
 					</Text>

@@ -68,7 +68,6 @@ export default function ResetPassword() {
 	const params = useLocalSearchParams();
 	const router = useRouter();
 	const [password, setPassword] = useState("");
-	const [confirmPassword, setConfirmPassword] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 
 	// Extract token and email from URL parameters
@@ -96,19 +95,14 @@ export default function ResetPassword() {
 	};
 
 	const handleResetPassword = async () => {
-		if (!password || !confirmPassword) {
-			Alert.alert("Error", "Please fill in all fields.");
+		if (!password) {
+			Alert.alert("Error", "Please enter a password.");
 			return;
 		}
 
 		const passwordError = validatePassword(password);
 		if (passwordError) {
 			Alert.alert("Invalid Password", passwordError);
-			return;
-		}
-
-		if (password !== confirmPassword) {
-			Alert.alert("Error", "Passwords do not match.");
 			return;
 		}
 
@@ -171,15 +165,6 @@ export default function ResetPassword() {
 						secureTextEntry: true,
 						value: password,
 						onChangeText: setPassword,
-						autoCapitalize: "none"
-					}),
-					React.createElement(TextInput, {
-						style: styles.input,
-						placeholder: "Confirm New Password",
-						placeholderTextColor: "#999",
-						secureTextEntry: true,
-						value: confirmPassword,
-						onChangeText: setConfirmPassword,
 						autoCapitalize: "none"
 					})
 				),

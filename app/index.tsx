@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Auth, sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+import { Auth, signInWithEmailAndPassword } from 'firebase/auth';
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -144,83 +144,9 @@ function LoginForm({ router }: { router: any }) {
     if (passwordError) setPasswordError(""); // Clear error when user types
   };
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      Alert.alert("Email Required", "Please enter your email address first.");
-      return;
-    }
-
-    if (!validateEmail(email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
-      return;
-    }
-
-    // Check rate limiting
-    try {
-      const lastResetTime = await AsyncStorage.getItem(`lastPasswordReset_${email}`);
-      if (lastResetTime) {
-        const timeDiff = Date.now() - parseInt(lastResetTime);
-        const cooldownTime = 2.5 * 60 * 1000; // 2.5 minutes in milliseconds
-
-        if (timeDiff < cooldownTime) {
-          const remainingTime = Math.ceil((cooldownTime - timeDiff) / 1000);
-          const minutes = Math.floor(remainingTime / 60);
-          const seconds = remainingTime % 60;
-          Alert.alert(
-            "Please Wait",
-            `You can request another password reset in ${minutes}:${seconds.toString().padStart(2, '0')}`
-          );
-          return;
-        }
-      }
-    } catch (error) {
-      console.error('Error checking rate limit:', error);
-    }
-
-    try {
-      // Use Firebase's native password reset email
-
-      await sendPasswordResetEmail(firebaseAuth, email);
-
-      // Store the timestamp for rate limiting
-      await AsyncStorage.setItem(`lastPasswordReset_${email}`, Date.now().toString());
-
-      // Navigate to email sent confirmation page
-      router.push({
-        pathname: "/email-sent",
-        params: {
-          type: "password-reset",
-          email: email,
-          title: "Password Reset Email Sent",
-          message: "We've sent a password reset link to your email address. Please check your email and follow the instructions."
-        }
-      });
-
-    } catch (error: any) {
-      console.error("Password reset error:", error);
-
-      let errorMessage = "Failed to send password reset email. Please try again.";
-
-      // Firebase specific error handling
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = "No account found with this email address.";
-          break;
-        case 'auth/invalid-email':
-          errorMessage = "Invalid email address.";
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = "Too many reset attempts. Please try again later.";
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = "Network error. Please check your connection.";
-          break;
-        default:
-          errorMessage = "Failed to send reset email. Please try again.";
-      }
-
-      Alert.alert("Reset Failed", errorMessage);
-    }
+  const handleForgotPassword = () => {
+    // Navigate directly to the forgot password page
+    router.push("/forgot-password");
   };
 
   const handleLogin = async () => {
@@ -259,8 +185,39 @@ function LoginForm({ router }: { router: any }) {
               text: "Resend Verification",
               onPress: async () => {
                 try {
+                  // Check rate limiting for verification email
+                  const lastVerificationTime = await AsyncStorage.getItem(`lastEmailVerification_${user.email || email}`);
+                  if (lastVerificationTime) {
+                    const timeDiff = Date.now() - parseInt(lastVerificationTime);
+                    const cooldownTime = 1 * 60 * 1000; // 1 minute cooldown
+                    if (timeDiff < cooldownTime) {
+                      const remainingTime = Math.ceil((cooldownTime - timeDiff) / 1000);
+                      const minutes = Math.floor(remainingTime / 60);
+                      const seconds = remainingTime % 60;
+                      Alert.alert("Please Wait", `You can request another verification email in ${minutes}:${seconds.toString().padStart(2, '0')}`);
+                      return;
+                    }
+                  }
+
                   const { sendEmailVerification } = await import('firebase/auth');
-                  await sendEmailVerification(user);
+
+                  // Send email verification with action code settings
+                  const actionCodeSettings = {
+                    url: `${window.location.origin}/email-verification-success`,
+                    handleCodeInApp: false,
+                  };
+
+                  try {
+                    await sendEmailVerification(user, actionCodeSettings);
+                  } catch (verificationError) {
+                    console.warn('Email verification with action code failed, trying default:', verificationError);
+                    // Fallback to default verification
+                    await sendEmailVerification(user);
+                  }
+
+                  // Store timestamp for rate limiting
+                  await AsyncStorage.setItem(`lastEmailVerification_${user.email || email}`, Date.now().toString());
+
                   router.push({
                     pathname: "/email-sent",
                     params: {

@@ -48,13 +48,16 @@ export const components = {
 		padding: 32,
 		borderWidth: 1,
 		borderColor: colors.border,
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 8 },
-		shadowOpacity: 0.15,
-		shadowRadius: 16,
-		elevation: 8,
 		alignItems: 'center' as const,
-		// Removed gradient background - using solid color only
+		...(Platform.OS === 'web' ? {
+			boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)',
+		} : {
+			shadowColor: '#000',
+			shadowOffset: { width: 0, height: 8 },
+			shadowOpacity: 0.15,
+			shadowRadius: 16,
+			elevation: 8,
+		}),
 	},
 	title: {
 		fontSize: 26,
@@ -72,12 +75,15 @@ export const components = {
 		alignItems: 'center' as const,
 		alignSelf: 'stretch' as const,
 		marginTop: 12,
-		shadowColor: colors.primary,
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.2,
-		shadowRadius: 8,
-		elevation: 4,
-		// Removed gradient background - using solid color only
+		...(Platform.OS === 'web' ? {
+			boxShadow: `0 4px 8px rgba(0, 102, 204, 0.2)`,
+		} : {
+			shadowColor: colors.primary,
+			shadowOffset: { width: 0, height: 4 },
+			shadowOpacity: 0.2,
+			shadowRadius: 8,
+			elevation: 4,
+		}),
 	},
 	ctaText: {
 		color: '#FFFFFF',
@@ -109,7 +115,7 @@ export const components = {
 	textFieldFocused: {
 		borderColor: colors.primary,
 		...(Platform.OS === 'web' ? {
-			boxShadow: `0 0 0 3px rgba(139, 92, 246, 0.1)`,
+			boxShadow: `0 0 0 3px rgba(0, 102, 204, 0.1)`,
 		} : {}),
 	},
 };

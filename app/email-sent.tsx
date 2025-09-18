@@ -3,7 +3,6 @@ import React from "react";
 import {
 	Alert,
 	Dimensions,
-	Linking,
 	Platform,
 	ScrollView,
 	StyleSheet,
@@ -21,107 +20,6 @@ export default function EmailSent() {
 	const params = useLocalSearchParams();
 
 	const { type, email, title, message } = params;
-
-	// Minimal white theme: remove grid background
-
-	const openEmailApp = async () => {
-		try {
-			if (Platform.OS === 'ios') {
-				// iOS - Try multiple email apps in order of preference
-				const iosEmailApps = [
-					'message://', // iOS Mail app (just open, don't compose)
-					'googlegmail://co', // Gmail app (just open)
-					'ms-outlook://compose', // Outlook app (just open)
-					'airmail://compose', // Airmail app
-					'sparrow://compose', // Sparrow app
-				];
-
-				let appOpened = false;
-				for (const appUrl of iosEmailApps) {
-					try {
-						const supported = await Linking.canOpenURL(appUrl);
-						if (supported) {
-							await Linking.openURL(appUrl);
-							appOpened = true;
-							break;
-						}
-					} catch (error) {
-						continue; // Try next app
-					}
-				}
-
-				if (!appOpened) {
-					Alert.alert(
-						"Open Email App",
-						"Please open your email app manually to check for new emails.",
-						[{ text: "OK" }]
-					);
-				}
-			} else {
-				// Android - Try specific email apps without composing
-				const androidEmailApps = [
-					// Gmail
-					{ url: 'googlegmail://co', name: 'Gmail' },
-					// Outlook
-					{ url: 'ms-outlook://emails', name: 'Outlook' },
-					// Huawei Email
-					{ url: 'com.android.email://emails', name: 'Huawei Email' },
-					// Samsung Email
-					{ url: 'com.samsung.android.email://emails', name: 'Samsung Email' },
-					// Yahoo Mail
-					{ url: 'ymail://mail', name: 'Yahoo Mail' },
-				];
-
-				let appOpened = false;
-
-				// Try each email app
-				for (const emailApp of androidEmailApps) {
-					try {
-						const supported = await Linking.canOpenURL(emailApp.url);
-						if (supported) {
-							await Linking.openURL(emailApp.url);
-							appOpened = true;
-							console.log(`Opened ${emailApp.name} successfully`);
-							break;
-						}
-					} catch (error) {
-						console.log(`${emailApp.name} not available:`, error);
-						continue;
-					}
-				}
-
-				// If no specific app worked, try generic approaches
-				if (!appOpened) {
-					try {
-						// Try to open email app selector without composing
-						const intent = {
-							action: 'android.intent.action.MAIN',
-							category: 'android.intent.category.APP_EMAIL'
-						};
-
-						// This won't work directly, so we'll use a different approach
-						Alert.alert(
-							"Open Email App",
-							"Please open your email app manually to check for your verification email.\n\nLook for an email from 'Bithero Team' in your inbox or spam folder.",
-							[{ text: "OK" }]
-						);
-					} catch (error) {
-						Alert.alert(
-							"Email App",
-							"Please open your email app manually to check for new emails."
-						);
-					}
-				}
-			}
-		} catch (error) {
-			console.error('Error opening email app:', error);
-			Alert.alert(
-				"Open Email App",
-				"Please open your email app manually to check for your verification email.\n\nLook for an email from 'Bithero Team'.",
-				[{ text: "OK" }]
-			);
-		}
-	};
 
 	const getIconForType = () => {
 		switch (type) {
@@ -169,12 +67,8 @@ export default function EmailSent() {
 				),
 
 				React.createElement(View, { style: styles.actionContainer },
-					React.createElement(TouchableOpacity, {
-						style: styles.emailButton,
-						onPress: openEmailApp
-					},
-						React.createElement(Text, { style: styles.emailButtonText }, "📱 Open Email App"),
-						React.createElement(Text, { style: styles.emailButtonSubtext }, "Check your inbox")
+					React.createElement(View, { style: styles.inboxNotice },
+						React.createElement(Text, { style: styles.inboxNoticeText }, "📧 Check your inbox or spam folder")
 					),
 
 					React.createElement(TouchableOpacity, {
@@ -235,12 +129,16 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: colors.border,
 		borderRadius: 12,
-		shadowColor: "#000",
-		shadowOpacity: 0.06,
-		shadowRadius: 12,
-		shadowOffset: { width: 0, height: 6 },
-		elevation: 2,
 		alignItems: "center",
+		...(Platform.OS === 'web' ? {
+			boxShadow: '0 6px 12px rgba(0, 0, 0, 0.06)',
+		} : {
+			shadowColor: "#000",
+			shadowOpacity: 0.06,
+			shadowRadius: 12,
+			shadowOffset: { width: 0, height: 6 },
+			elevation: 2,
+		}),
 	},
 	iconContainer: {
 		position: "relative",
@@ -292,6 +190,21 @@ const styles = StyleSheet.create({
 	actionContainer: {
 		width: "100%",
 		marginBottom: 32,
+	},
+	inboxNotice: {
+		backgroundColor: colors.inputBg,
+		borderRadius: 10,
+		padding: 16,
+		alignItems: "center",
+		marginBottom: 12,
+		borderWidth: 1,
+		borderColor: colors.border,
+	},
+	inboxNoticeText: {
+		color: colors.text,
+		fontSize: 14,
+		fontWeight: "600",
+		textAlign: "center",
 	},
 	emailButton: {
 		backgroundColor: colors.primary,

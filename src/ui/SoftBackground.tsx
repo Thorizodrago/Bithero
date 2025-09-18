@@ -31,7 +31,6 @@ const Blob = ({ size, left, top, delay, duration, color, opacity }: { size: numb
 					backgroundColor: color,
 					opacity,
 					transform: [{ translateY }, { translateX }],
-					pointerEvents: 'none' as any,
 				},
 			]}
 		/>
@@ -50,10 +49,14 @@ const styles = StyleSheet.create({
 		left: 0,
 		right: 0,
 		bottom: 0,
+		pointerEvents: 'none',
 	},
 	blob: {
 		position: 'absolute',
 		borderRadius: 9999,
-		filter: 'blur(40px)' as any, // web only; ignored on native
+		pointerEvents: 'none',
+		...(Platform.OS === 'web' ? {
+			filter: 'blur(40px)',
+		} : {}),
 	},
 });
