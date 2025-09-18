@@ -75,13 +75,13 @@ export default function EmailSent() {
 						style: styles.backButton,
 						onPress: () => {
 							if (type === 'email-verification') {
-								router.push('/add-profile');
+								router.push('/connect-wallet');
 							} else {
 								router.push("/");
 							}
 						}
 					},
-						React.createElement(Text, { style: styles.backButtonText }, type === 'email-verification' ? "→ Create Profile" : "← Back to Login")
+						React.createElement(Text, { style: styles.backButtonText }, type === 'email-verification' ? "→ Connect Wallet" : "← Back to Login")
 					)
 				),
 
@@ -163,27 +163,27 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 24,
 		fontWeight: "700",
-		color: "#111",
+		color: "#fff",
 		marginBottom: 8,
 		textAlign: "center",
 	},
 	subtitle: {
 		fontSize: 14,
-		color: "#666",
+		color: "#fff",
 		textAlign: "center",
 		marginBottom: 12,
 		lineHeight: 20,
 	},
 	emailText: {
 		fontSize: 14,
-		color: "#111",
+		color: "#fff",
 		fontWeight: "600",
 		marginBottom: 12,
 		textAlign: "center",
 	},
 	message: {
 		fontSize: 13,
-		color: "#666",
+		color: "#fff",
 		textAlign: "center",
 		lineHeight: 18,
 	},
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 	},
 	resendButtonText: {
-		color: "#111",
+		color: "#fff",
 		fontSize: 13,
 		fontWeight: "600",
 	},

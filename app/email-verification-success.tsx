@@ -17,7 +17,7 @@ export default function EmailVerificationSuccess() {
 	useEffect(() => {
 		// Auto redirect after 3 seconds
 		const timer = setTimeout(() => {
-			router.replace("/");
+			router.replace("/connect-wallet");
 		}, 3000);
 
 		return () => clearTimeout(timer);
@@ -45,9 +45,9 @@ export default function EmailVerificationSuccess() {
 				React.createElement(View, { style: styles.actionContainer },
 					React.createElement(TouchableOpacity, {
 						style: styles.loginButton,
-						onPress: () => router.replace("/")
+						onPress: () => router.replace("/connect-wallet")
 					},
-						React.createElement(Text, { style: styles.loginButtonText }, "Go to Login")
+						React.createElement(Text, { style: styles.loginButtonText }, "Connect Wallet")
 					)
 				)
 			)
