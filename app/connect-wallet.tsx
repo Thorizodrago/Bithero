@@ -257,7 +257,7 @@ export default function ConnectWallet() {
 							disabled={isConnecting}
 						>
 							<Text style={components.ctaText}>
-								{isConnecting ? '🔄 Bypassing other wallets...' : '� Connect Leather (Anti-Conflict)'}
+								{isConnecting ? 'Connecting to your wallet...' : 'Connect Leather'}
 							</Text>
 						</TouchableOpacity>
 					)}
