@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { getUserWalletAddress } from '../src/db';
 import { auth } from '../src/firebase';
 import SoftBackground from "../src/ui/SoftBackground";
 import { colors, components, layout } from "../src/ui/theme";
@@ -244,8 +245,16 @@ function LoginForm({ router }: { router: any }) {
       // Başarılı girişte bilgileri kaydet/sil
       await saveCredentials();
 
-      // Navigate to main instead of dashboard
-      router.push("/main");
+      // Check if user has wallet address
+      const walletAddress = await getUserWalletAddress(user.uid);
+
+      if (walletAddress) {
+        // User has wallet, go to main app
+        router.push("/main");
+      } else {
+        // User needs to connect wallet first
+        router.push("/connect-wallet");
+      }
 
     } catch (error: any) {
       console.error("Login error:", error);

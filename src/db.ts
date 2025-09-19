@@ -11,6 +11,7 @@ export interface BitcoinUser {
 	email: string;
 	profilePictureUrl?: string;
 	realName?: string;
+	realNameLower?: string; // For case-insensitive search
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 	additionalBitcoinAddresses?: string[];
@@ -70,6 +71,7 @@ export async function createOrUpdateBitcoinUser(firebaseUser: FirebaseAuthUser, 
 	}
 	if (params.realName !== undefined) {
 		data.realName = params.realName;
+		data.realNameLower = params.realName.toLowerCase();
 	}
 
 	await setDoc(userRef, data as BitcoinUser, { merge: true });
@@ -238,5 +240,61 @@ export async function cleanupUserData(uid: string) {
 
 	} catch (error) {
 		console.error('Error cleaning up user data:', error);
+	}
+}
+
+export async function updateUserWalletAddress(uid: string, stacksAddress: string) {
+	const userRef = doc(db, 'users', uid);
+	await setDoc(userRef, {
+		stacksAddress,
+		updatedAt: Timestamp.now()
+	} as Partial<BitcoinUser>, { merge: true });
+}
+
+export async function getUserWalletAddress(uid: string): Promise<string | null> {
+	const userRef = doc(db, 'users', uid);
+	const snap = await getDoc(userRef);
+
+	if (snap.exists()) {
+		const userData = snap.data() as BitcoinUser;
+		return userData.stacksAddress || null;
+	}
+
+	return null;
+}
+
+export async function searchUsers(searchTerm: string, isUsernameSearch: boolean = false): Promise<BitcoinUser[]> {
+	try {
+		const usersRef = collection(db, 'users');
+		let searchQuery;
+
+		if (isUsernameSearch) {
+			// Search by username (remove @ if present)
+			const cleanUsername = searchTerm.replace('@', '').toLowerCase();
+			searchQuery = query(
+				usersRef,
+				where('usernameLower', '>=', cleanUsername),
+				where('usernameLower', '<=', cleanUsername + '\uf8ff'),
+				limit(20)
+			);
+		} else {
+			// Search by real name (case-insensitive)
+			const cleanRealName = searchTerm.toLowerCase();
+			searchQuery = query(
+				usersRef,
+				where('realNameLower', '>=', cleanRealName),
+				where('realNameLower', '<=', cleanRealName + '\uf8ff'),
+				limit(20)
+			);
+		}
+
+		const snapshot = await getDocs(searchQuery);
+		const results = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as BitcoinUser));
+
+		console.log('DB Search results for:', searchTerm, 'isUsername:', isUsernameSearch, 'found:', results.length);
+		return results;
+	} catch (error) {
+		console.error('Error searching users:', error);
+		return [];
 	}
 }

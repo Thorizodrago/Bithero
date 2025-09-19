@@ -1,0 +1,11 @@
+{
+	"uid": "test-user-1",
+	"username": "testuser",
+	"usernameLower": "testuser",
+	"email": "test@example.com",
+	"realName": "Test User",
+	"realNameLower": "test user",
+	"stacksAddress": "SP1234567890ABCDEF",
+	"createdAt": "2024-01-01T00:00:00Z",
+	"updatedAt": "2024-01-01T00:00:00Z"
+}

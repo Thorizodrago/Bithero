@@ -179,7 +179,7 @@ export default function Profile() {
 					React.createElement(Image, {
 						source: profileImage
 							? { uri: profileImage }
-							: require("../assets/images/home-icon.png"),
+							: require("../assets/images/default-profile-picture-male-icon.png"),
 						style: styles.profileImage
 					}),
 					isEditing && React.createElement(View, { style: styles.imageEditOverlay },

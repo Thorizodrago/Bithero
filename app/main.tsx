@@ -3,51 +3,62 @@ import { onAuthStateChanged } from 'firebase/auth';
 import React, { useEffect, useState } from "react";
 import {
 	Alert,
-	Dimensions,
 	Image,
 	Platform,
 	ScrollView,
 	StatusBar,
 	StyleSheet,
 	Text,
+	TextInput,
 	TouchableOpacity,
 	View
 } from "react-native";
-import { getUserByUid } from '../src/db';
+import { getUserByUid, getUserWalletAddress, searchUsers } from '../src/db';
 import { auth } from '../src/firebase';
 import SoftBackground from "../src/ui/SoftBackground";
-import { colors, components } from "../src/ui/theme";
+import { colors } from "../src/ui/theme";
 
-const { width, height } = Dimensions.get('window');
+interface UserProfile {
+	uid: string;
+	username: string;
+	email: string;
+	stacksAddress?: string;
+	realName?: string;
+	profilePictureUrl?: string;
+}
 
 export default function Main() {
 	const router = useRouter();
-	const [user, setUser] = useState<any>(null);
+	const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [firstName, setFirstName] = useState("");
+	const [searchTerm, setSearchTerm] = useState("");
+	const [searchResults, setSearchResults] = useState<any[]>([]);
 
 	useEffect(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (user) => {
 			if (user && user.emailVerified) {
-				setUser(user);
-				// Extract first name
-				if (user.displayName) {
-					const name = user.displayName.split(' ')[0];
-					setFirstName(name);
-				} else {
-					const emailName = user.email?.split('@')[0] || "User";
-					setFirstName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
-				}
-				// Check profile completeness
 				try {
-					const uDoc = await getUserByUid(user.uid);
-					if (!uDoc || !uDoc.bitcoinAddress || !uDoc.username) {
-						router.replace('/connect-wallet');
-						return;
+					const profile = await getUserByUid(user.uid);
+					const walletAddress = await getUserWalletAddress(user.uid);
+
+					if (profile) {
+						setUserProfile({
+							uid: user.uid,
+							username: profile.username,
+							email: user.email || '',
+							stacksAddress: walletAddress || undefined,
+							realName: profile.realName,
+							profilePictureUrl: profile.profilePictureUrl
+						});
+						// TODO: Load additional user data if needed
+					} else {
+						router.replace('/create-account');
 					}
-				} catch { }
+				} catch (error) {
+					console.error('Error loading user profile:', error);
+				}
 			} else {
-				router.replace("/");
+				router.replace('/');
 			}
 			setLoading(false);
 		});
@@ -55,128 +66,157 @@ export default function Main() {
 		return () => unsubscribe();
 	}, []);
 
-	const handlePremiumPress = () => {
-		Alert.alert("Premium Features", "Premium page coming soon!");
-	};
+	const handleSearch = async (text: string) => {
+		setSearchTerm(text);
+		if (text.trim().length < 2) {
+			setSearchResults([]);
+			return;
+		}
 
-	const handleToolsPress = () => {
-		router.push('/transfers');
+		const isUsernameSearch = text.startsWith('@');
+		console.log('Searching for:', text, 'isUsername:', isUsernameSearch);
+		const results = await searchUsers(text, isUsernameSearch);
+		console.log('Search results:', results);
+		setSearchResults(results);
 	};
 
 	const handleProfilePress = () => {
-		router.push("/profile");
+		console.log('Profile pressed');
+	};
+
+	const handleLogout = () => {
+		Alert.alert(
+			'Sign Out',
+			'Are you sure you want to sign out?',
+			[
+				{ text: 'Cancel', style: 'cancel' },
+				{
+					text: 'Sign Out',
+					style: 'destructive',
+					onPress: async () => {
+						await auth.signOut();
+						router.replace('/');
+					}
+				}
+			]
+		);
 	};
 
 	if (loading) {
-		return React.createElement(View, { style: styles.loadingContainer },
-			React.createElement(Text, { style: styles.loadingText }, "Loading...")
+		return (
+			<View style={styles.container}>
+				<SoftBackground />
+				<View style={styles.centerContent}>
+					<Text style={styles.loadingText}>Loading...</Text>
+				</View>
+			</View>
 		);
 	}
 
-	if (!user) {
-		return null; // Will redirect to login
+	if (!userProfile) {
+		return null;
 	}
 
-	return React.createElement(View, { style: styles.container },
-		React.createElement(StatusBar, {
-			barStyle: "dark-content",
-			backgroundColor: colors.background,
-			translucent: Platform.OS === 'android'
-		}),
-		React.createElement(SoftBackground, null),
+	return (
+		<View style={styles.container}>
+			<StatusBar barStyle="light-content" backgroundColor={colors.background} />
+			<SoftBackground />
 
-		React.createElement(ScrollView, {
-			contentContainerStyle: styles.scrollContainer,
-			showsVerticalScrollIndicator: false,
-			style: styles.scrollView
-		},
-			// Welcome Section (outside container)
-			React.createElement(View, { style: styles.welcomeSection },
-				React.createElement(Text, { style: styles.welcomeText }, `Welcome, ${firstName}`)
-			),
+			{/* Header */}
+			<View style={styles.header}>
+				<TouchableOpacity onPress={handleProfilePress} style={styles.profileButton}>
+					<Image
+						source={require('../assets/images/default-profile-picture-male-icon.png')}
+						style={styles.profileImage}
+					/>
+				</TouchableOpacity>
 
-			// Main content area
-			React.createElement(View, { style: styles.contentArea },
-				React.createElement(View, { style: styles.dashboardCard },
-					React.createElement(Text, { style: styles.dashboardTitle }, "Bithero Dashboard"),
-					React.createElement(Text, { style: styles.dashboardSubtitle }, "Send Bitcoin by username, manage your profile, and explore premium tools."),
-					React.createElement(View, { style: styles.quickActions },
-						React.createElement(TouchableOpacity, {
-							style: styles.actionButton,
-							onPress: handleToolsPress
-						},
-							React.createElement(Text, { style: styles.actionIcon }, "💸"),
-							React.createElement(Text, { style: styles.actionText }, "Send BTC")
-						),
-						React.createElement(TouchableOpacity, {
-							style: styles.actionButton,
-							onPress: handleProfilePress
-						},
-							React.createElement(Text, { style: styles.actionIcon }, "👤"),
-							React.createElement(Text, { style: styles.actionText }, "Profile")
-						),
-						React.createElement(TouchableOpacity, {
-							style: styles.actionButton,
-							onPress: handlePremiumPress
-						},
-							React.createElement(Text, { style: styles.actionIcon }, "⭐"),
-							React.createElement(Text, { style: styles.actionText }, "Premium")
-						)
-					)
-				),
-				React.createElement(View, { style: styles.infoCard },
-					React.createElement(Text, { style: styles.infoTitle }, "How it works?"),
-					React.createElement(Text, { style: styles.infoText }, "1. Create your account and verify your email.\n2. Add your Bitcoin address.\n3. Send BTC to any username instantly!\n4. Pin contacts and view your transfer history.")
-				)
-			)
-		),
+				<View style={styles.stxContainer}>
+					<Text style={styles.stxSymbol}>STX</Text>
+				</View>
+			</View>
 
-		// Bottom Tab Navigation
-		React.createElement(View, { style: styles.bottomTabContainer },
-			// Home Tab (Current page - active)
-			React.createElement(TouchableOpacity, {
-				style: styles.tabButton,
-				onPress: () => { } // Already on home
-			},
-				React.createElement(Image, {
-					source: require("../assets/images/home-icon.png"),
-					style: [styles.tabIcon, styles.activeTabIcon]
-				})
-			),
+			{/* Search Section */}
+			<View style={styles.searchSection}>
+				<TextInput
+					style={styles.searchInput}
+					placeholder="Search by name or @username"
+					placeholderTextColor={colors.subtleText}
+					value={searchTerm}
+					onChangeText={handleSearch}
+				/>
+				<View style={styles.searchHelper}>
+					<Text style={styles.searchHelperText}>
+						{searchTerm.startsWith('@')
+							? "Searching by username"
+							: "Searching by real name • Use @username for usernames"
+						}
+					</Text>
+				</View>
+			</View>			<View style={styles.walletSection}>
+				<Text style={styles.walletLabel}>Wallet Address</Text>
+				<Text style={styles.walletAddress} numberOfLines={1} ellipsizeMode="middle">
+					{userProfile.stacksAddress || 'No wallet connected'}
+				</Text>
+			</View>
 
-			// Premium Tab
-			React.createElement(TouchableOpacity, {
-				style: styles.tabButton,
-				onPress: handlePremiumPress
-			},
-				React.createElement(Image, {
-					source: require("../assets/images/home-icon.png"),
-					style: [styles.tabIcon, styles.inactiveTabIcon]
-				})
-			),
+			{/* Actions */}
+			<View style={styles.actionsContainer}>
+				<TouchableOpacity style={styles.actionButton}>
+					<Text style={styles.actionButtonText}>Send</Text>
+				</TouchableOpacity>
+				<TouchableOpacity style={styles.actionButton}>
+					<Text style={styles.actionButtonText}>Receive</Text>
+				</TouchableOpacity>
+			</View>
 
-			// Tools Tab
-			React.createElement(TouchableOpacity, {
-				style: styles.tabButton,
-				onPress: handleToolsPress
-			},
-				React.createElement(Image, {
-					source: require("../assets/images/home-icon.png"),
-					style: [styles.tabIcon, styles.inactiveTabIcon]
-				})
-			),
+			{/* Search Results */}
+			<ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+				{searchTerm.length >= 2 ? (
+					<View style={styles.searchResultsSection}>
+						<Text style={styles.sectionTitle}>Search Results</Text>
+						{searchResults.length > 0 ? (
+							searchResults.map((user, index) => (
+								<TouchableOpacity key={user.uid} style={styles.userItem}>
+									<Image
+										source={require('../assets/images/default-profile-picture-male-icon.png')}
+										style={styles.userAvatar}
+									/>
+									<View style={styles.userInfo}>
+										<Text style={styles.userName}>
+											{user.realName || 'No real name'}
+										</Text>
+										<Text style={styles.userSecondary}>
+											@{user.username}
+										</Text>
+									</View>
+								</TouchableOpacity>
+							))
+						) : (
+							<View style={styles.emptyState}>
+								<Text style={styles.emptyStateText}>
+									{searchTerm.startsWith('@') ?
+										`No users found with username "${searchTerm}"` :
+										`No users found with name "${searchTerm}"`
+									}
+								</Text>
+							</View>
+						)}
+					</View>
+				) : (
+					<View style={styles.activitySection}>
+						<Text style={styles.sectionTitle}>Recent Activity</Text>
+						<View style={styles.emptyState}>
+							<Text style={styles.emptyStateText}>No recent transactions</Text>
+						</View>
+					</View>
+				)}
+			</ScrollView>
 
-			// Profile Tab
-			React.createElement(TouchableOpacity, {
-				style: styles.tabButton,
-				onPress: handleProfilePress
-			},
-				React.createElement(Image, {
-					source: require("../assets/images/home-icon.png"),
-					style: [styles.profileIcon, styles.inactiveTabIcon]
-				})
-			)
-		)
+			<TouchableOpacity onPress={handleLogout} style={styles.debugButton}>
+				<Text style={styles.debugButtonText}>Sign Out</Text>
+			</TouchableOpacity>
+		</View>
 	);
 }
 
@@ -185,150 +225,174 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: colors.background,
 	},
-	loadingContainer: {
+	centerContent: {
 		flex: 1,
-		backgroundColor: colors.background,
-		justifyContent: "center",
-		alignItems: "center",
+		justifyContent: 'center',
+		alignItems: 'center',
 	},
 	loadingText: {
-		color: colors.primary,
-		fontSize: 18,
+		color: colors.text,
+		fontSize: 16,
 	},
-	scrollView: {
-		flex: 1,
-	},
-	scrollContainer: {
-		flexGrow: 1,
-		paddingBottom: 100,
-	},
-	welcomeSection: {
+	header: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
 		paddingHorizontal: 20,
-		paddingTop: Platform.OS === 'android' ? 50 : 60,
+		paddingTop: Platform.OS === 'ios' ? 60 : 40,
 		paddingBottom: 20,
 	},
-	welcomeText: {
-		fontSize: 24,
-		fontWeight: "700",
-		color: colors.text,
-		textAlign: "center",
+	profileButton: {
+		width: 44,
+		height: 44,
+		borderRadius: 22,
+		overflow: 'hidden',
+		borderWidth: 2,
+		borderColor: colors.border,
 	},
-	contentArea: {
-		flex: 1,
-		paddingHorizontal: 20,
-		justifyContent: "center",
-		alignItems: "center",
-		minHeight: height * 0.6,
-		gap: 24,
-	},
-	dashboardCard: {
-		...components.card,
+	profileImage: {
 		width: '100%',
-		maxWidth: 420,
-		padding: 24,
+		height: '100%',
+		resizeMode: 'cover',
+		tintColor: '#fff',
 	},
-	dashboardTitle: {
-		fontSize: 20,
-		fontWeight: '700',
-		color: colors.text,
-		marginBottom: 6,
-		textAlign: 'center',
+	stxContainer: {
+		backgroundColor: colors.primary,
+		paddingHorizontal: 12,
+		paddingVertical: 6,
+		borderRadius: 16,
 	},
-	dashboardSubtitle: {
+	stxSymbol: {
+		color: '#fff',
 		fontSize: 14,
-		color: colors.subtleText,
-		marginBottom: 18,
-		textAlign: 'center',
+		fontWeight: '700',
 	},
-	quickActions: {
+	walletSection: {
+		paddingHorizontal: 20,
+		marginBottom: 32,
+	},
+	walletLabel: {
+		color: colors.subtleText,
+		fontSize: 14,
+		marginBottom: 8,
+	},
+	walletAddress: {
+		color: colors.text,
+		fontSize: 16,
+		fontFamily: 'monospace',
+		backgroundColor: colors.inputBg,
+		padding: 12,
+		borderRadius: 8,
+		borderWidth: 1,
+		borderColor: colors.border,
+	},
+	actionsContainer: {
 		flexDirection: 'row',
-		gap: 18,
-		justifyContent: 'center',
-		marginBottom: 4,
+		paddingHorizontal: 20,
+		gap: 12,
+		marginBottom: 32,
 	},
 	actionButton: {
-		backgroundColor: colors.inputBg,
+		flex: 1,
+		backgroundColor: colors.primary,
+		paddingVertical: 14,
 		borderRadius: 10,
-		paddingVertical: 16,
-		paddingHorizontal: 18,
 		alignItems: 'center',
-		minWidth: 90,
-		...(Platform.OS === 'web' ? {
-			boxShadow: `0 2px 6px rgba(0, 102, 204, 0.08)`,
-		} : {
-			shadowColor: colors.primary,
-			shadowOffset: { width: 0, height: 2 },
-			shadowOpacity: 0.08,
-			shadowRadius: 6,
-			elevation: 2,
-		}),
 	},
-	actionIcon: {
-		fontSize: 24,
-		marginBottom: 2,
-	},
-	actionText: {
-		fontSize: 13,
-		color: colors.primary,
+	actionButtonText: {
+		color: '#fff',
+		fontSize: 16,
 		fontWeight: '600',
 	},
-	infoCard: {
-		...components.card,
-		width: '100%',
-		maxWidth: 420,
-		padding: 18,
+	scrollContent: {
+		flex: 1,
 	},
-	infoTitle: {
-		fontSize: 15,
-		fontWeight: '700',
+	searchSection: {
+		paddingHorizontal: 20,
+		marginBottom: 20,
+	},
+	searchInput: {
+		backgroundColor: colors.inputBg,
+		borderWidth: 1,
+		borderColor: colors.border,
+		borderRadius: 10,
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+		fontSize: 16,
 		color: colors.text,
-		marginBottom: 6,
+		marginBottom: 8,
 	},
-	infoText: {
-		fontSize: 13,
+	searchHelper: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginTop: 8,
+	},
+	searchHelperText: {
+		fontSize: 12,
 		color: colors.subtleText,
-		textAlign: 'center',
-		lineHeight: 20,
+		marginLeft: 6,
 	},
-	bottomTabContainer: {
-		position: 'absolute',
-		bottom: 0,
-		left: 0,
-		right: 0,
-		height: 80,
-		backgroundColor: colors.card,
-		borderTopWidth: 1,
-		borderTopColor: colors.border,
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-around",
-		paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+	activitySection: {
+		paddingHorizontal: 20,
 	},
-	tabButton: {
-		alignItems: "center",
-		justifyContent: "center",
+	searchResultsSection: {
+		paddingHorizontal: 20,
+	},
+	userItem: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		backgroundColor: colors.inputBg,
+		marginBottom: 8,
+		borderRadius: 10,
+		borderWidth: 1,
+		borderColor: colors.border,
+	},
+	userAvatar: {
+		width: 40,
+		height: 40,
+		borderRadius: 20,
+		marginRight: 12,
+		tintColor: '#fff',
+	},
+	userInfo: {
 		flex: 1,
 	},
-	centerTabButton: {
-		alignItems: "center",
-		justifyContent: "center",
-		flex: 1,
+	userName: {
+		fontSize: 16,
+		fontWeight: '600',
+		color: colors.text,
+		marginBottom: 2,
 	},
-	tabIcon: {
-		width: 24,
-		height: 24,
+	userSecondary: {
+		fontSize: 14,
+		color: colors.subtleText,
 	},
-	profileIcon: {
-		width: 28,
-		height: 28,
-		borderRadius: 14,
+	sectionTitle: {
+		color: colors.text,
+		fontSize: 18,
+		fontWeight: '600',
+		marginBottom: 16,
 	},
-	activeTabIcon: {
-		opacity: 1,
-		tintColor: colors.primary,
+	emptyState: {
+		alignItems: 'center',
+		paddingVertical: 40,
 	},
-	inactiveTabIcon: {
-		opacity: 0.6,
-		tintColor: colors.primary,
+	emptyStateText: {
+		color: colors.subtleText,
+		fontSize: 16,
+	},
+	debugButton: {
+		margin: 20,
+		backgroundColor: colors.border,
+		paddingVertical: 12,
+		borderRadius: 8,
+		alignItems: 'center',
+	},
+	debugButtonText: {
+		color: colors.text,
+		fontSize: 14,
+		fontWeight: '600',
 	},
 });

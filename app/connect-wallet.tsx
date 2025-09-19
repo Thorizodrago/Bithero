@@ -1,8 +1,8 @@
 import { AppConfig, UserSession } from '@stacks/auth';
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { createOrUpdateBitcoinUser, getUserByUid } from '../src/db';
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { updateUserWalletAddress } from '../src/db';
 import { auth } from '../src/firebase';
 import SoftBackground from "../src/ui/SoftBackground";
 import { colors, components, layout } from "../src/ui/theme";
@@ -212,29 +212,21 @@ export default function ConnectWallet() {
 		}
 
 		try {
-			console.log('Getting user profile...');
-			const profile = await getUserByUid(user.uid);
-			const username = profile?.username;
+			setIsConnecting(true);
+			console.log('Saving wallet address...');
 
-			if (!username) {
-				Alert.alert('Missing nickname', 'Your nickname was not set. Please go back and try creating your account again.');
-				router.replace('/create-account');
-				return;
-			}
+			// Save wallet address to database
+			await updateUserWalletAddress(user.uid, trimmedAddress);
 
-			console.log('Saving STX address...', { username, stacksAddress: trimmedAddress });
-			// Only save stacksAddress - don't include undefined bitcoinAddress
-			await createOrUpdateBitcoinUser(user, {
-				username,
-				stacksAddress: trimmedAddress
-			});
-
-			console.log('Navigating to add-profile...');
-			router.push(`/add-profile?address=${encodeURIComponent(trimmedAddress)}` as any);
+			console.log('Wallet address saved successfully!');
+			// Navigate to main app
+			router.replace('/main');
 		} catch (error) {
 			console.error('Error in handleContinue:', error);
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-			Alert.alert('Error', `Failed to save address: ${errorMessage}`);
+			Alert.alert('Error', `Failed to save wallet address: ${errorMessage}`);
+		} finally {
+			setIsConnecting(false);
 		}
 	};
 
@@ -285,11 +277,18 @@ export default function ConnectWallet() {
 					</Text>
 
 					<TouchableOpacity
-						style={[components.cta, !validateStacksAddress(address) && components.disabledButton]}
+						style={[
+							components.cta,
+							(!validateStacksAddress(address) || isConnecting) && components.disabledButton
+						]}
 						onPress={handleContinue}
-						disabled={!validateStacksAddress(address)}
+						disabled={!validateStacksAddress(address) || isConnecting}
 					>
-						<Text style={components.ctaText}>Continue</Text>
+						{isConnecting ? (
+							<ActivityIndicator color="#fff" />
+						) : (
+							<Text style={components.ctaText}>Continue</Text>
+						)}
 					</TouchableOpacity>
 
 					<TouchableOpacity onPress={() => router.back()}>
