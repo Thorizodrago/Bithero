@@ -50,12 +50,21 @@ export async function createOrUpdateBitcoinUser(firebaseUser: FirebaseAuthUser, 
 	const snap = await getDoc(userRef);
 	const now = Timestamp.now();
 
+	// Safely get existing createdAt or use current timestamp
+	let existingCreatedAt = now;
+	if (snap.exists()) {
+		const existingData = snap.data();
+		if (existingData?.createdAt && existingData.createdAt instanceof Timestamp) {
+			existingCreatedAt = existingData.createdAt;
+		}
+	}
+
 	const data: Partial<BitcoinUser> = {
 		uid: firebaseUser.uid,
 		username: params.username,
 		usernameLower: normalizeUsername(params.username),
 		email: firebaseUser.email || '',
-		createdAt: snap.exists() ? (snap.data().createdAt as Timestamp) : now,
+		createdAt: existingCreatedAt,
 		updatedAt: now,
 	};
 

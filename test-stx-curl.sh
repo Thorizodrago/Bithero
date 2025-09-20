@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Test STX Transfer with API
+echo "🚀 Testing STX Transfer Transaction Broadcasting..."
+
+# Bu örnek bir signed transaction'ı test eder
+# Gerçek bir transfer için private key ile sign etmen gerekir
+
+# Example signed transaction (test data)
+SIGNED_TX="0080000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+echo "📤 Broadcasting transaction to testnet..."
+curl -X POST "https://stacks-node-api.testnet.stacks.co/v2/transactions" \
+  -H "Content-Type: application/octet-stream" \
+  -d "$SIGNED_TX" | jq
+
+echo ""
+echo "ℹ️  NOT: Gerçek transfer için:"
+echo "1. Private key ile transaction sign edilmeli"
+echo "2. Proper nonce kullanılmalı"
+echo "3. Sufficient fees olmalı"
+echo ""
+echo "✅ cURL test completed!"
