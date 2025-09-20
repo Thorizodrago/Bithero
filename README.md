@@ -255,12 +255,6 @@ npx expo build:android
 - **Blockchain**: Stacks Network  
 - **Wallet**: Leather Wallet  
 
-## 🙏 Acknowledgments
-
-- Stacks Network for blockchain infrastructure  
-- Leather for wallet integration  
-- Expo App for cross-platform framework  
-- Firebase for backend services  
 
 ---
 
