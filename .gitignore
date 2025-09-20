@@ -30,6 +30,8 @@ Thumbs.db
 # Firebase config (sensitive)
 firebase-config.js
 firebase-adminsdk-*.json
+src/firebase.ts
+firebase.ts
 
 # Logs
 *.log
