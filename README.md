@@ -258,4 +258,4 @@ npx expo build:android
 
 ---
 
-**Made with ❤️, ☕ and 🤖 for the Stacks ecosystem**
+**Made by Efe Yılmaz and Ömer Balaban for Stacks Ecosystem with ❤️, ☕ and 🤖.**
