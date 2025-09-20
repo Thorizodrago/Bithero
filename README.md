@@ -184,8 +184,7 @@ EXPO_PUBLIC_CONTRACT_ADDRESS=your_contract_address
 
 ### 3. Send STX
 - Go to "Send" tab  
-- Enter amount and recipient address  
-- Click "Send STX"  
+- Enter amount and recipient username then Click "Send STX"  
 - Approve transaction in Leather wallet  
 - Transfer completes  
 
